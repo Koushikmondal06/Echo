@@ -4,6 +4,7 @@ Using Algorand Python testing framework patterns
 """
 
 import pytest
+from typing import Literal
 from algopy import (
     Account,
     Asset,
@@ -15,7 +16,7 @@ from algopy import (
     itxn,
     op,
 )
-from algopy.testing import algopy_testing_context
+from algopy_testing import algopy_testing_context
 
 
 class TestPredictionMarket:
@@ -30,11 +31,19 @@ class TestPredictionMarket:
     @pytest.fixture
     def accounts(self, context):
         """Create test accounts."""
-        admin = context.generate_account(100_000_000_000)  # 100K ALGO
-        creator = context.generate_account(10_000_000_000)  # 10K ALGO
-        user1 = context.generate_account(5_000_000_000)     # 5K ALGO
-        user2 = context.generate_account(5_000_000_000)     # 5K ALGO
-        oracle = context.generate_account(1_000_000_000)    # 1K ALGO
+        admin = context.any.account()
+        creator = context.any.account()
+        user1 = context.any.account()
+        user2 = context.any.account()
+        oracle = context.any.account()
+        
+        # Fund accounts
+        context.ledger.update_account(admin, balance=100_000_000_000)  # 100K ALGO
+        context.ledger.update_account(creator, balance=10_000_000_000)  # 10K ALGO
+        context.ledger.update_account(user1, balance=5_000_000_000)     # 5K ALGO
+        context.ledger.update_account(user2, balance=5_000_000_000)     # 5K ALGO
+        context.ledger.update_account(oracle, balance=1_000_000_000)    # 1K ALGO
+        
         return {
             "admin": admin,
             "creator": creator,
@@ -51,8 +60,8 @@ class TestPredictionMarket:
         contract = PredictionMarket()
         
         # Generate oracle keypair (mock)
-        oracle_pubkey = arc4.StaticArray[arc4.Byte, arc4.Literal[32]](
-            [arc4.Byte(i % 256) for i in range(32)]
+        oracle_pubkey = arc4.StaticArray[arc4.Byte, Literal[32]](
+            *(arc4.Byte(i % 256) for i in range(32))
         )
         
         # Create app
@@ -78,8 +87,8 @@ class TestPredictionMarket:
         creator = accounts["creator"]
         
         # Mock oracle pubkey
-        oracle_pubkey = arc4.StaticArray[arc4.Byte, arc4.Literal[32]](
-            [arc4.Byte(i % 256) for i in range(32)]
+        oracle_pubkey = arc4.StaticArray[arc4.Byte, Literal[32]](
+            *(arc4.Byte(i % 256) for i in range(32))
         )
         
         # Create market: 65% YES, 1000 ALGO seed, b=1000*SCALE
@@ -112,8 +121,8 @@ class TestPredictionMarket:
             # Switch sender to non-admin
             Txn.sender = accounts["user1"]
             
-            oracle_pubkey = arc4.StaticArray[arc4.Byte, arc4.Literal[32]](
-                [arc4.Byte(i % 256) for i in range(32)]
+            oracle_pubkey = arc4.StaticArray[arc4.Byte, Literal[32]](
+                *(arc4.Byte(i % 256) for i in range(32))
             )
             
             contract.create_market(
@@ -129,8 +138,8 @@ class TestPredictionMarket:
     def test_create_market_rejects_past_end_time(self, contract, accounts):
         """Reject markets with end time in the past."""
         with pytest.raises(Exception, match="End time must be in future"):
-            oracle_pubkey = arc4.StaticArray[arc4.Byte, arc4.Literal[32]](
-                [arc4.Byte(i % 256) for i in range(32)]
+            oracle_pubkey = arc4.StaticArray[arc4.Byte, Literal[32]](
+                *(arc4.Byte(i % 256) for i in range(32))
             )
             
             contract.create_market(
@@ -149,8 +158,8 @@ class TestPredictionMarket:
         user1 = accounts["user1"]
         
         # Create market first
-        oracle_pubkey = arc4.StaticArray[arc4.Byte, arc4.Literal[32]](
-            [arc4.Byte(i % 256) for i in range(32)]
+        oracle_pubkey = arc4.StaticArray[arc4.Byte, Literal[32]](
+            *(arc4.Byte(i % 256) for i in range(32))
         )
         
         market_id = contract.create_market(
@@ -192,8 +201,8 @@ class TestPredictionMarket:
         user1 = accounts["user1"]
         admin = accounts["admin"]
         
-        oracle_pubkey = arc4.StaticArray[arc4.Byte, arc4.Literal[32]](
-            [arc4.Byte(i % 256) for i in range(32)]
+        oracle_pubkey = arc4.StaticArray[arc4.Byte, Literal[32]](
+            *(arc4.Byte(i % 256) for i in range(32))
         )
         
         market_id = contract.create_market(
@@ -230,8 +239,8 @@ class TestPredictionMarket:
         creator = accounts["creator"]
         user1 = accounts["user1"]
         
-        oracle_pubkey = arc4.StaticArray[arc4.Byte, arc4.Literal[32]](
-            [arc4.Byte(i % 256) for i in range(32)]
+        oracle_pubkey = arc4.StaticArray[arc4.Byte, Literal[32]](
+            *(arc4.Byte(i % 256) for i in range(32))
         )
         
         market_id = contract.create_market(
@@ -267,8 +276,8 @@ class TestPredictionMarket:
         creator = accounts["creator"]
         oracle = accounts["oracle"]
         
-        oracle_pubkey = arc4.StaticArray[arc4.Byte, arc4.Literal[32]](
-            [arc4.Byte(i % 256) for i in range(32)]
+        oracle_pubkey = arc4.StaticArray[arc4.Byte, Literal[32]](
+            *(arc4.Byte(i % 256) for i in range(32))
         )
         
         market_id = contract.create_market(
@@ -286,8 +295,8 @@ class TestPredictionMarket:
         
         # Create valid signature (mock - in real test would use actual ed25519)
         # For testing, we verify the signature verification logic works
-        signature = arc4.StaticArray[arc4.Byte, arc4.Literal[64]](
-            [arc4.Byte(0) for _ in range(64)]
+        signature = arc4.StaticArray[arc4.Byte, Literal[64]](
+            *(arc4.Byte(0) for _ in range(64))
         )
         
         # This will fail with mock signature but tests the flow
@@ -298,8 +307,8 @@ class TestPredictionMarket:
 
     def test_submit_outcome_rejects_before_end(self, contract, accounts):
         """Reject outcome submission before market end time."""
-        oracle_pubkey = arc4.StaticArray[arc4.Byte, arc4.Literal[32]](
-            [arc4.Byte(i % 256) for i in range(32)]
+        oracle_pubkey = arc4.StaticArray[arc4.Byte, Literal[32]](
+            *(arc4.Byte(i % 256) for i in range(32))
         )
         
         market_id = contract.create_market(
@@ -312,8 +321,8 @@ class TestPredictionMarket:
             b_param=UInt64(1_000_000_000_000),
         )
         
-        signature = arc4.StaticArray[arc4.Byte, arc4.Literal[64]](
-            [arc4.Byte(0) for _ in range(64)]
+        signature = arc4.StaticArray[arc4.Byte, Literal[64]](
+            *(arc4.Byte(0) for _ in range(64))
         )
         
         with pytest.raises(Exception, match="Market not ended"):
@@ -325,8 +334,8 @@ class TestPredictionMarket:
 
     def test_submit_outcome_rejects_double_submit(self, contract, accounts):
         """Reject second outcome submission."""
-        oracle_pubkey = arc4.StaticArray[arc4.Byte, arc4.Literal[32]](
-            [arc4.Byte(i % 256) for i in range(32)]
+        oracle_pubkey = arc4.StaticArray[arc4.Byte, Literal[32]](
+            *(arc4.Byte(i % 256) for i in range(32))
         )
         
         market_id = contract.create_market(
@@ -341,8 +350,8 @@ class TestPredictionMarket:
         
         Global.latest_timestamp = Global.latest_timestamp + 100000
         
-        signature = arc4.StaticArray[arc4.Byte, arc4.Literal[64]](
-            [arc4.Byte(0) for _ in range(64)]
+        signature = arc4.StaticArray[arc4.Byte, Literal[64]](
+            *(arc4.Byte(0) for _ in range(64))
         )
         
         # First submission would fail with invalid signature
@@ -363,8 +372,8 @@ class TestPredictionMarket:
         """Test dispute window functionality."""
         admin = accounts["admin"]
         
-        oracle_pubkey = arc4.StaticArray[arc4.Byte, arc4.Literal[32]](
-            [arc4.Byte(i % 256) for i in range(32)]
+        oracle_pubkey = arc4.StaticArray[arc4.Byte, Literal[32]](
+            *(arc4.Byte(i % 256) for i in range(32))
         )
         
         market_id = contract.create_market(
@@ -398,8 +407,8 @@ class TestPredictionMarket:
         """Reject dispute after window closes."""
         admin = accounts["admin"]
         
-        oracle_pubkey = arc4.StaticArray[arc4.Byte, arc4.Literal[32]](
-            [arc4.Byte(i % 256) for i in range(32)]
+        oracle_pubkey = arc4.StaticArray[arc4.Byte, Literal[32]](
+            *(arc4.Byte(i % 256) for i in range(32))
         )
         
         market_id = contract.create_market(
@@ -433,8 +442,8 @@ class TestPredictionMarket:
         creator = accounts["creator"]
         user1 = accounts["user1"]
         
-        oracle_pubkey = arc4.StaticArray[arc4.Byte, arc4.Literal[32]](
-            [arc4.Byte(i % 256) for i in range(32)]
+        oracle_pubkey = arc4.StaticArray[arc4.Byte, Literal[32]](
+            *(arc4.Byte(i % 256) for i in range(32))
         )
         
         market_id = contract.create_market(
@@ -483,8 +492,8 @@ class TestPredictionMarket:
         """Reject payout claim for losing position."""
         user1 = accounts["user1"]
         
-        oracle_pubkey = arc4.StaticArray[arc4.Byte, arc4.Literal[32]](
-            [arc4.Byte(i % 256) for i in range(32)]
+        oracle_pubkey = arc4.StaticArray[arc4.Byte, Literal[32]](
+            *(arc4.Byte(i % 256) for i in range(32))
         )
         
         market_id = contract.create_market(
@@ -528,8 +537,8 @@ class TestPredictionMarket:
         """Reject payout during dispute window."""
         user1 = accounts["user1"]
         
-        oracle_pubkey = arc4.StaticArray[arc4.Byte, arc4.Literal[32]](
-            [arc4.Byte(i % 256) for i in range(32)]
+        oracle_pubkey = arc4.StaticArray[arc4.Byte, Literal[32]](
+            *(arc4.Byte(i % 256) for i in range(32))
         )
         
         market_id = contract.create_market(
@@ -567,8 +576,8 @@ class TestPredictionMarket:
 
     def test_get_implied_price(self, contract, accounts):
         """Test implied price calculation."""
-        oracle_pubkey = arc4.StaticArray[arc4.Byte, arc4.Literal[32]](
-            [arc4.Byte(i % 256) for i in range(32)]
+        oracle_pubkey = arc4.StaticArray[arc4.Byte, Literal[32]](
+            *(arc4.Byte(i % 256) for i in range(32))
         )
         
         market_id = contract.create_market(
@@ -587,8 +596,8 @@ class TestPredictionMarket:
 
     def test_market_count(self, contract, accounts):
         """Test market counter increments."""
-        oracle_pubkey = arc4.StaticArray[arc4.Byte, arc4.Literal[32]](
-            [arc4.Byte(i % 256) for i in range(32)]
+        oracle_pubkey = arc4.StaticArray[arc4.Byte, Literal[32]](
+            *(arc4.Byte(i % 256) for i in range(32))
         )
         
         assert contract.get_market_count() == UInt64(0)

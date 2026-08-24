@@ -2,6 +2,7 @@
  * Main entry point for the Oracle/Relayer service
  */
 
+import { spawn } from 'child_process';
 import { GammaFetcher, createGammaFetcher } from './fetchers/gamma';
 import { ClobFetcher, createClobFetcher } from './fetchers/clob';
 import { FinalityFetcher, createFinalityFetcher } from './fetchers/finality';
@@ -92,8 +93,7 @@ class Relayer {
   }
 
   /**
-   * Submit signed oracle submission to Algorand
-   * This would use algosdk to send the transaction
+   * Submit signed oracle submission to Algorand via Python script
    */
   private async submitToAlgorand(submission: {
     marketId: bigint;
@@ -107,11 +107,57 @@ class Relayer {
       timestamp: submission.timestamp.toString(),
     });
 
-    // Placeholder - would use algosdk to call submit_outcome on the contract
-    // const txId = await algodClient.sendTransaction(signedTxn);
+    const config = {
+      algod_address: process.env.ALGOD_ADDRESS || 'http://localhost:4001',
+      algod_token: process.env.ALGOD_TOKEN || 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      app_id: parseInt(process.env.ALGORAND_APP_ID || '0'),
+      sender_mnemonic: process.env.ORACLE_MNEMONIC || '',
+      market_id: Number(submission.marketId),
+      outcome: submission.outcome,
+      timestamp: Number(submission.timestamp),
+      signature_b64: Buffer.from(submission.signature).toString('base64'),
+    };
+
+    if (!config.sender_mnemonic) {
+      throw new Error('ORACLE_MNEMONIC not set in environment');
+    }
+
+    const scriptPath = __dirname + '/../submit_outcome.py';
     
-    // For now, return mock tx ID
-    return 'mock-tx-id-' + Date.now();
+    return new Promise((resolve, reject) => {
+      const python = spawn('python3', [scriptPath, JSON.stringify(config)]);
+      
+      let stdout = '';
+      let stderr = '';
+      
+      python.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+      
+      python.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+      
+      python.on('close', (code) => {
+        if (code !== 0) {
+          logger.error('Python submission script failed', { stderr, code });
+          reject(new Error(`Submission failed: ${stderr}`));
+          return;
+        }
+        
+        try {
+          const result = JSON.parse(stdout.trim());
+          if (result.error) {
+            reject(new Error(result.error));
+          } else {
+            logger.info('Oracle submission successful', { txId: result.tx_id });
+            resolve(result.tx_id);
+          }
+        } catch (e) {
+          reject(new Error(`Failed to parse submission result: ${stdout}`));
+        }
+      });
+    });
   }
 
   /**
