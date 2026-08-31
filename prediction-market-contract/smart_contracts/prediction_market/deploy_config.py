@@ -20,10 +20,9 @@ def deploy() -> None:
         PredictionMarketFactory, default_sender=deployer_.address
     )
 
-    # Use a real ed25519 keypair for the oracle
-    # Private key (base64): BoiPb+LD9FZeZwChd4dlOzbN547IBg5Y4+q/IgnJDEE=
-    # Public key (base64): JqIZLptGkILqA6Yb+QWTEaq6QPJpB73iVViuPrJg0A4=
-    oracle_pubkey_b64 = "JqIZLptGkILqA6Yb+QWTEaq6QPJpB73iVViuPrJg0A4="
+    # Use relayer's ed25519 keypair for the oracle
+    # Public key (base64): Qk1rYDoiH0yy1T0j2xv9D+6HVKaIqdRCZyqas23CnRE=
+    oracle_pubkey_b64 = "Qk1rYDoiH0yy1T0j2xv9D+6HVKaIqdRCZyqas23CnRE="
     oracle_pubkey = base64.b64decode(oracle_pubkey_b64)
     
     app_client, result = factory.deploy(
