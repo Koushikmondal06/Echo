@@ -146,13 +146,6 @@ export class SigningService {
   }
 
   /**
-   * Export public key as base64 (for contract deployment)
-   */
-  exportPublicKeyBase64(): string {
-    return Buffer.from(this.keypair.publicKey).toString('base64');
-  }
-
-  /**
    * Export public key as Algorand address (for accounts array)
    */
   exportPublicKeyAsAddress(): string {

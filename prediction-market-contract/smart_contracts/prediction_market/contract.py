@@ -317,7 +317,7 @@ class PredictionMarket(ARC4Contract):
         # Message format: market_id (8 bytes LE) + outcome (1 byte) + timestamp (8 bytes LE)
         outcome_byte = arc4.Byte(1 if outcome else 0)
         message = op.itob(market_id) + outcome_byte.bytes + op.itob(timestamp)
-        assert op.ed25519verify(message, signature.bytes, Txn.accounts[1]), "Invalid signature"
+        assert op.ed25519verify(message, signature.bytes, Txn.accounts(UInt64(1))), "Invalid signature"
         
         # Update market state using splice for efficiency (single operation per field)
         # resolved = True (offset 378, 1 byte)

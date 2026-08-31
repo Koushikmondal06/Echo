@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@types/pg": "^8.23.1",
+    "algosdk": "^3.7.0",
     "axios": "^1.7.0",
     "dotenv": "^16.4.0",
     "node-cron": "^3.0.3",
