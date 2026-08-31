@@ -11,6 +11,8 @@ import { SigningService, createSigningService } from './sign';
 import { Scheduler, createScheduler } from './scheduler';
 import { MarketMapping } from './types';
 import { logger } from './utils/logger';
+import { getMarketMappingsForResolution, updateMarketMapping, listActiveMarketMappings } from './db/market-mappings';
+import { closeRelayerPool } from './db/pool';
 
 class Relayer {
   private gammaFetcher: GammaFetcher;
@@ -58,38 +60,30 @@ class Relayer {
   async stop(): Promise<void> {
     logger.info('Stopping relayer...');
     this.scheduler.stop();
+    await closeRelayerPool();
     logger.info('Relayer stopped');
   }
 
   /**
    * Load market mappings from database
-   * In production, this would query PostgreSQL
    */
   private async loadMarketMappings(): Promise<void> {
-    logger.info('Loading market mappings...');
+    logger.info('Loading market mappings from database...');
     
-    // Placeholder - would load from database
-    // For now, add a test mapping
-    const testMapping: MarketMapping = {
-      algorandMarketId: 0,
-      algorandAppId: parseInt(process.env.ALGORAND_APP_ID || '0'),
-      yesAssetId: 0,
-      noAssetId: 0,
-      polymarketMarketId: 'test-market',
-      polymarketConditionId: '0x1234567890abcdef',
-      polymarketQuestion: 'Test Market',
-      polymarketResolutionCriteria: 'Test criteria',
-      polymarketEndDate: new Date(Date.now() + 86400000),
-      seedLiquidity: 1000000000,
-      bParam: 1000000000000,
-      status: 'active',
-      oraclePubkey: this.signingService.getPublicKey(),
-    };
-    
-    this.marketMappings.set(0, testMapping);
-    this.scheduler.addMarketMapping(testMapping);
-    
-    logger.info('Market mappings loaded', { count: this.marketMappings.size });
+    try {
+      // Load active markets that need monitoring
+      const activeMappings = await listActiveMarketMappings();
+      
+      for (const mapping of activeMappings) {
+        this.marketMappings.set(mapping.algorandMarketId, mapping);
+        this.scheduler.addMarketMapping(mapping);
+      }
+      
+      logger.info('Market mappings loaded from database', { count: this.marketMappings.size });
+    } catch (error) {
+      logger.error('Failed to load market mappings from database', { error });
+      throw error;
+    }
   }
 
   /**
@@ -124,7 +118,7 @@ class Relayer {
 
     const scriptPath = __dirname + '/../submit_outcome.py';
     
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       const python = spawn('python3', [scriptPath, JSON.stringify(config)]);
       
       let stdout = '';
@@ -138,7 +132,7 @@ class Relayer {
         stderr += data.toString();
       });
       
-      python.on('close', (code) => {
+      python.on('close', async (code) => {
         if (code !== 0) {
           logger.error('Python submission script failed', { stderr, code });
           reject(new Error(`Submission failed: ${stderr}`));
@@ -151,6 +145,15 @@ class Relayer {
             reject(new Error(result.error));
           } else {
             logger.info('Oracle submission successful', { txId: result.tx_id });
+            
+            // Update market mapping in database
+            await updateMarketMapping(Number(submission.marketId), {
+              status: 'resolved',
+              resolvedOutcome: submission.outcome,
+              outcomeSubmittedAt: new Date(Number(submission.timestamp)),
+              disputeDeadline: new Date(Date.now() + 86400000), // 24 hours
+            });
+            
             resolve(result.tx_id);
           }
         } catch (e) {

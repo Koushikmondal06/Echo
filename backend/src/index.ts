@@ -8,6 +8,7 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { marketRoutes } from './api/markets';
 import { adminRoutes } from './api/admin';
+import { marketMappingRoutes } from './api/market-mappings';
 import { initializeDatabase, closePool } from './db/pool';
 import { createIndexerService } from './indexer';
 import { createEventFetcher } from './fetchers/onchain-events';
@@ -67,6 +68,7 @@ async function start() {
     // Register API routes
     await fastify.register(marketRoutes, { prefix: '/api/v1' });
     await fastify.register(adminRoutes, { prefix: '/api/v1' });
+    await fastify.register(marketMappingRoutes, { prefix: '/api/v1' });
 
     // Start server
     const port = parseInt(process.env.PORT || '3001');
