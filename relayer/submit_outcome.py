@@ -36,6 +36,9 @@ def submit_outcome(
     
     # Get suggested params
     params = client.suggested_params()
+    # Increase fee for multiple box_replace operations (each box_replace costs extra)
+    params.fee = 10000  # 0.01 ALGO
+    params.flat_fee = True
     
     # Decode signature
     signature = b64decode(signature_b64)

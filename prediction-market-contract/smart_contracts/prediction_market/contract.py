@@ -15,6 +15,7 @@ from algopy import (
     GlobalState,
     LocalState,
     urange,
+    ensure_budget,
 )
 from typing import Literal
 
@@ -292,24 +293,45 @@ class PredictionMarket(ARC4Contract):
         timestamp: UInt64,
         signature: arc4.StaticArray[arc4.Byte, Literal[64]],
     ) -> None:
-        market = self.markets[market_id].copy()
-        assert not market.resolved, "Market already resolved"
-        assert Global.latest_timestamp >= market.end_time, "Market not ended"
-        assert market.outcome_submitted_at == 0, "Outcome already submitted"
-
-        # Use oracle pubkey directly (StaticArray[Byte, 32] has .bytes property)
-        oracle_key = market.oracle_pubkey.bytes
+        # Read market box directly to avoid copying full struct
+        # BoxMap key format: "markets" + market_id (8 bytes LE)
+        box_key = Bytes(b"markets") + op.itob(market_id)
+        box_val, exists = op.Box.get(box_key)
+        assert exists, "Market not found"
+        
+        # Read resolved field (offset 378, 1 byte)
+        resolved_bytes = op.Box.extract(box_key, 378, 1)
+        assert resolved_bytes == b"\x00", "Market already resolved"
+        
+        # Check end_time (offset 322, 8 bytes)
+        end_time_bytes = op.Box.extract(box_key, 322, 8)
+        end_time = op.btoi(end_time_bytes)
+        assert Global.latest_timestamp >= end_time, "Market not ended"
+        
+        # Check outcome_submitted_at (offset 380, 8 bytes)
+        submitted_at_bytes = op.Box.extract(box_key, 380, 8)
+        submitted_at = op.btoi(submitted_at_bytes)
+        assert submitted_at == 0, "Outcome already submitted"
+        
+        # Get oracle_pubkey (offset 330, 32 bytes)
+        oracle_key = op.Box.extract(box_key, 330, 32)
+        
         # Message format: market_id (8 bytes LE) + outcome (1 byte) + timestamp (8 bytes LE)
-        # outcome is ABI bool (1 byte), use it directly
         outcome_byte = arc4.Byte(1 if outcome else 0)
         message = op.itob(market_id) + outcome_byte.bytes + op.itob(timestamp)
         assert op.ed25519verify_bare(message, signature.bytes, oracle_key), "Invalid signature"
-
-        market.resolved = arc4.Bool(True)
-        market.outcome = arc4.Bool(outcome)
-        market.outcome_submitted_at = arc4.UInt64(Global.latest_timestamp)
-        market.dispute_deadline = arc4.UInt64(Global.latest_timestamp + self.dispute_window.value)
-        self.markets[market_id] = market.copy()
+        
+        # Update market state using splice for efficiency (single operation per field)
+        # resolved = True (offset 378, 1 byte)
+        op.Box.splice(box_key, 378, 1, b"\x01")
+        # outcome (offset 379, 1 byte)
+        outcome_byte = arc4.Byte(1 if outcome else 0)
+        op.Box.splice(box_key, 379, 1, outcome_byte.bytes)
+        # outcome_submitted_at = Global.latest_timestamp (offset 380, 8 bytes)
+        op.Box.splice(box_key, 380, 8, op.itob(Global.latest_timestamp))
+        # dispute_deadline = Global.latest_timestamp + dispute_window (offset 388, 8 bytes)
+        dispute_deadline = Global.latest_timestamp + self.dispute_window.value
+        op.Box.splice(box_key, 388, 8, op.itob(dispute_deadline))
 
     @arc4.abimethod
     def dispute_outcome(self, market_id: UInt64) -> None:

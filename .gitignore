@@ -51,3 +51,4 @@ artifacts/
 # Temporary
 *.tmp
 *.temp
+.neon
