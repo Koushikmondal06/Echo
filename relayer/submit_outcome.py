@@ -13,6 +13,8 @@ import json
 import os
 from algosdk import account, mnemonic, transaction, encoding
 from algosdk.v2client import algod as algod_client
+from algosdk.atomic_transaction_composer import AtomicTransactionComposer, TransactionWithSigner
+from algosdk.abi import Method, Argument
 from base64 import b64decode
 
 def submit_outcome(
@@ -36,49 +38,45 @@ def submit_outcome(
     
     # Get suggested params
     params = client.suggested_params()
-    # Increase fee for multiple box_replace operations (each box_replace costs extra)
     params.fee = 10000  # 0.01 ALGO
     params.flat_fee = True
     
     # Decode signature
     signature = b64decode(signature_b64)
     
-    # Prepare app call arguments
-    # Method: submit_outcome(uint64, bool, uint64, byte[64])
-    # First arg is method selector (4 bytes), then ABI-encoded args
-    # Selector from compiled contract: 0xa2083a1c
-    selector = bytes.fromhex('a2083a1c')
+    # Define the method signature
+    method = Method.from_signature("submit_outcome(uint64,bool,uint64,byte[64])void")
     
-    app_args = [
-        selector,
-        market_id.to_bytes(8, 'little'),
-        b'\x01' if outcome else b'\x00',
-        timestamp.to_bytes(8, 'little'),
-        signature,
-    ]
+    # Box reference: "markets" + market_id (8 bytes BE)
+    box_name = b'markets' + market_id.to_bytes(8, 'big')
     
-    # Box reference: "markets" + market_id (8 bytes LE) (matching contract: "markets" + itob(market_id))
-    box_name = b'markets' + market_id.to_bytes(8, 'little')
+    from algosdk.atomic_transaction_composer import AccountTransactionSigner
     
-    # Create application call transaction (NoOp) with box reference
-    txn = transaction.ApplicationNoOpTxn(
+    signer = AccountTransactionSigner(private_key)
+    
+    # Create atomic transaction composer
+    atc = AtomicTransactionComposer()
+    
+    # Add method call with proper ABI encoding
+    atc.add_method_call(
+        app_id=app_id,
+        method=method,
         sender=sender,
         sp=params,
-        index=app_id,
-        app_args=app_args,
+        signer=signer,
+        method_args=[
+            market_id,           # uint64
+            outcome,             # bool
+            timestamp,           # uint64
+            signature,           # byte[64]
+        ],
         boxes=[(app_id, box_name)],
     )
     
-    # Sign transaction
-    signed_txn = txn.sign(private_key)
+    # Execute
+    result = atc.execute(client, 4)
     
-    # Submit transaction
-    tx_id = client.send_transaction(signed_txn)
-    
-    # Wait for confirmation
-    confirmed_txn = transaction.wait_for_confirmation(client, tx_id, 4)
-    
-    return tx_id
+    return result.tx_ids[0]
 
 
 if __name__ == "__main__":

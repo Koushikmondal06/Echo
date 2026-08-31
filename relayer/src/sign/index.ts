@@ -111,14 +111,15 @@ export class SigningService {
   }
 
   /**
-   * Encode message for signing: marketId (8 bytes LE) + outcome (1 byte) + timestamp (8 bytes LE)
+   * Encode message for signing: marketId (8 bytes BE) + outcome (1 byte) + timestamp (8 bytes BE)
+   * Matches AVM's itob() which uses big-endian
    */
   private encodeMessage(submission: OracleSubmission): Uint8Array {
     const message = new Uint8Array(17); // 8 + 1 + 8
     
-    // marketId (8 bytes, little-endian)
+    // marketId (8 bytes, big-endian) - matches AVM itob()
     let marketId = submission.marketId;
-    for (let i = 0; i < 8; i++) {
+    for (let i = 7; i >= 0; i--) {
       message[i] = Number(marketId & 0xffn);
       marketId >>= 8n;
     }
@@ -126,10 +127,10 @@ export class SigningService {
     // outcome (1 byte)
     message[8] = submission.outcome ? 1 : 0;
     
-    // timestamp (8 bytes, little-endian)
+    // timestamp (8 bytes, big-endian) - matches AVM itob()
     let timestamp = submission.timestamp;
-    for (let i = 0; i < 8; i++) {
-      message[9 + i] = Number(timestamp & 0xffn);
+    for (let i = 16; i >= 9; i--) {
+      message[i] = Number(timestamp & 0xffn);
       timestamp >>= 8n;
     }
     

@@ -79,6 +79,13 @@ class Relayer {
         this.scheduler.addMarketMapping(mapping);
       }
       
+      // Enable test mode for finality fetcher with our test market
+      const testConditionId = '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
+      this.finalityFetcher.enableTestMode(new Map([
+        [testConditionId, { outcome: true, disputeStatus: 'none' }], // YES outcome
+      ]));
+      logger.info('Finality fetcher test mode enabled', { conditionId: testConditionId });
+      
       logger.info('Market mappings loaded from database', { count: this.marketMappings.size });
     } catch (error) {
       logger.error('Failed to load market mappings from database', { error });

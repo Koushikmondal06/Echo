@@ -7,15 +7,24 @@ import pRetry from 'p-retry';
 import { ResolutionFinality, FetcherConfig, FetcherHealth } from '../types';
 import { logger } from '../utils/logger';
 
+export interface FinalityFetcherConfig extends FetcherConfig {
+  testMode?: boolean;
+  testFinalConditionIds?: Map<string, { outcome: boolean; disputeStatus: 'none' | 'pending' | 'resolved' | 'escalated' }>;
+}
+
 export class FinalityFetcher {
   private gammaClient: AxiosInstance;
   private umaClient: AxiosInstance | null = null;
-  private config: FetcherConfig;
+  private config: FinalityFetcherConfig;
   private health: FetcherHealth;
   private cache: Map<string, { data: ResolutionFinality; timestamp: number }> = new Map();
+  private testMode: boolean = false;
+  private testFinalConditionIds: Map<string, { outcome: boolean; disputeStatus: 'none' | 'pending' | 'resolved' | 'escalated' }> = new Map();
 
-  constructor(config: FetcherConfig) {
+  constructor(config: FinalityFetcherConfig) {
     this.config = config;
+    this.testMode = config.testMode || false;
+    this.testFinalConditionIds = config.testFinalConditionIds || new Map();
     
     // Gamma API for market resolution data
     this.gammaClient = axios.create({
@@ -51,6 +60,24 @@ export class FinalityFetcher {
   }
 
   /**
+   * Enable test mode with predefined final condition IDs
+   */
+  enableTestMode(conditionIds: Map<string, { outcome: boolean; disputeStatus: 'none' | 'pending' | 'resolved' | 'escalated' }>): void {
+    this.testMode = true;
+    this.testFinalConditionIds = conditionIds;
+    logger.info('Finality fetcher test mode enabled', { conditionIds: Array.from(conditionIds.keys()) });
+  }
+
+  /**
+   * Disable test mode
+   */
+  disableTestMode(): void {
+    this.testMode = false;
+    this.testFinalConditionIds.clear();
+    logger.info('Finality fetcher test mode disabled');
+  }
+
+  /**
    * Check if a market's resolution is final
    * Returns finality status with outcome if final
    */
@@ -61,6 +88,22 @@ export class FinalityFetcher {
     // Use shorter cache TTL for finality checks (1 minute)
     if (cached && Date.now() - cached.timestamp < 60 * 1000) {
       return cached.data;
+    }
+
+    // Test mode: return predefined finality for test condition IDs
+    if (this.testMode && this.testFinalConditionIds.has(conditionId)) {
+      const testData = this.testFinalConditionIds.get(conditionId)!;
+      const result: ResolutionFinality = {
+        conditionId,
+        isFinal: testData.disputeStatus === 'none' || testData.disputeStatus === 'resolved',
+        outcome: testData.outcome,
+        disputeStatus: testData.disputeStatus,
+        lastChecked: Date.now(),
+      };
+      this.cache.set(cacheKey, { data: result, timestamp: Date.now() });
+      this.recordSuccess();
+      logger.info('Finality check (test mode)', result);
+      return result;
     }
 
     try {
