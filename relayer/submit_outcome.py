@@ -13,8 +13,8 @@ import json
 import os
 from algosdk import account, mnemonic, transaction, encoding
 from algosdk.v2client import algod as algod_client
-from algosdk.atomic_transaction_composer import AtomicTransactionComposer, TransactionWithSigner
-from algosdk.abi import Method, Argument
+from algosdk.atomic_transaction_composer import AtomicTransactionComposer, TransactionWithSigner, AccountTransactionSigner
+from algosdk.abi import Method
 from base64 import b64decode
 
 def submit_outcome(
@@ -25,7 +25,8 @@ def submit_outcome(
     market_id: int,
     outcome: bool,
     timestamp: int,
-    signature_b64: str
+    signature_b64: str,
+    oracle_address: str
 ) -> str:
     """Submit outcome to the prediction market contract."""
     
@@ -71,6 +72,7 @@ def submit_outcome(
             signature,           # byte[64]
         ],
         boxes=[(app_id, box_name)],
+        accounts=[oracle_address],  # Oracle address for ed25519verify
     )
     
     # Execute
@@ -96,6 +98,7 @@ if __name__ == "__main__":
             outcome=config["outcome"],
             timestamp=config["timestamp"],
             signature_b64=config["signature_b64"],
+            oracle_address=config["oracle_address"],
         )
         
         print(json.dumps({"tx_id": tx_id}))

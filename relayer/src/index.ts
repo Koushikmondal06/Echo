@@ -117,6 +117,7 @@ class Relayer {
       outcome: submission.outcome,
       timestamp: Number(submission.timestamp),
       signature_b64: Buffer.from(submission.signature).toString('base64'),
+      oracle_address: this.signingService.exportPublicKeyAsAddress(),
     };
 
     if (!config.sender_mnemonic) {

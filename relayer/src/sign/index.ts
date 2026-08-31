@@ -6,6 +6,7 @@ import nacl from 'tweetnacl';
 import { encodeUTF8, decodeUTF8 } from 'tweetnacl-util';
 import { OracleSubmission, FetcherHealth } from '../types';
 import { logger } from '../utils/logger';
+import { encodeAddress } from 'algosdk';
 
 export interface SigningKeypair {
   publicKey: Uint8Array;
@@ -142,6 +143,20 @@ export class SigningService {
    */
   getPublicKey(): Uint8Array {
     return this.keypair.publicKey;
+  }
+
+  /**
+   * Export public key as base64 (for contract deployment)
+   */
+  exportPublicKeyBase64(): string {
+    return Buffer.from(this.keypair.publicKey).toString('base64');
+  }
+
+  /**
+   * Export public key as Algorand address (for accounts array)
+   */
+  exportPublicKeyAsAddress(): string {
+    return encodeAddress(this.keypair.publicKey);
   }
 
   /**

@@ -321,13 +321,11 @@ class PredictionMarket(ARC4Contract):
         submitted_at = op.btoi(submitted_at_bytes)
         assert submitted_at == 0, "Outcome already submitted"
         
-        # Get oracle_pubkey (offset 330, 32 bytes)
-        oracle_key = op.Box.extract(box_key, 330, 32)
-        
+        # Verify signature using ed25519verify with oracle address in accounts[1]
         # Message format: market_id (8 bytes LE) + outcome (1 byte) + timestamp (8 bytes LE)
         outcome_byte = arc4.Byte(1 if outcome else 0)
         message = op.itob(market_id) + outcome_byte.bytes + op.itob(timestamp)
-        assert op.ed25519verify_bare(message, signature.bytes, oracle_key), "Invalid signature"
+        assert op.ed25519verify(message, signature.bytes, Txn.accounts[1]), "Invalid signature"
         
         # Update market state using splice for efficiency
         # resolved = True (offset 378, 1 byte)
