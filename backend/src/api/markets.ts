@@ -108,11 +108,12 @@ export async function marketRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       const row = marketResult.rows[0];
+      const marketMappingId = row.id; // UUID
 
       // Get recent trades
       const tradesResult = await query(
         `SELECT * FROM trades WHERE market_mapping_id = $1 ORDER BY created_at DESC LIMIT 50`,
-        [marketId]
+        [marketMappingId]
       );
 
       const market: MarketDetail = {

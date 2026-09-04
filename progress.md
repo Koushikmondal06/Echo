@@ -56,21 +56,41 @@ Decentralized prediction market on Algorand with outcomes anchored to Polymarket
 
 ---
 
-### 📋 Phase 2 - Oracle/Relayer (READY TO START)
+### 📋 Phase 2 - Oracle/Relayer (IN PROGRESS)
 
 **Required Components:**
 | Component | Description | Status |
 |-----------|-------------|--------|
-| Gamma Market Fetcher | Poll Polymarket Gamma API for market data | 🔄 Not started |
-| CLOB Price Fetcher | Live order book/price feed | 🔄 Not started |
-| Resolution Finality Fetcher | Check UMA dispute status before settlement | 🔄 Not started |
-| Oracle Signing Service | Sign outcomes with ed25519 private key | 🔄 Not started |
-| Job Scheduler | Poll near market end dates (node-cron/BullMQ) | 🔄 Not started |
+| Gamma Market Fetcher | Poll Polymarket Gamma API for market data | ✅ Implemented (network timeout in this env) |
+| CLOB Price Fetcher | Live order book/price feed | ✅ Implemented |
+| Resolution Finality Fetcher | Check UMA dispute status before settlement | ✅ Implemented (test mode working) |
+| Oracle Signing Service | Sign outcomes with ed25519 private key | ✅ Working |
+| Job Scheduler | Poll near market end dates (node-cron) | ✅ Working |
 
 **Architecture:**
 ```
 Polymarket API → Fetchers → Oracle Service → ed25519 Sign → submit_outcome() on Algorand
 ```
+
+**Relayer Test Status:**
+- ✅ Relayer starts and loads market mappings from DB
+- ✅ Scheduler polls for markets ending soon
+- ✅ Finality fetcher test mode returns predefined outcome
+- ✅ Oracle signing service generates valid ed25519 signatures
+- ✅ Submission script constructs correct ATC transaction
+- ⚠️ TestNet submission fails: market not ended (contract requires `latest_timestamp >= end_time`)
+- ✅ TestNet market 0 ends ~1788627692 (24h from creation)
+
+**Backend API Status:**
+- ✅ Server starts on port 3001
+- ✅ Health endpoint: `/health`
+- ✅ Markets list: `GET /api/v1/markets`
+- ✅ Market detail: `GET /api/v1/markets/:marketId`
+- ✅ Market trades: `GET /api/v1/markets/:marketId/trades`
+- ✅ User position: `GET /api/v1/markets/:marketId/position?userAddress=`
+- ✅ Swagger docs at `/docs`
+- ✅ Liquidity health monitoring (background job)
+- ✅ On-chain event fetcher (background job)
 
 ---
 
@@ -114,8 +134,10 @@ Polymarket API → Fetchers → Oracle Service → ed25519 Sign → submit_outco
    - `buy_position` (10 ALGO) ✅
    - `submit_outcome` with ed25519 signature ✅ (requires market ended)
    - `claim_payout` pending dispute window
-5. **Start Phase 2:** Oracle/Relayer implementation
-6. **Build backend API** for frontend integration
+5. ✅ **Relayer implementation** - Core components working in test mode
+6. **Complete backend API** for frontend integration
+7. **Test full flow on LocalNet** (time control for market end)
+8. **Wait for TestNet market 0 to end** (~1788627692) then verify `submit_outcome` → `claim_payout`
 
 ---
 
