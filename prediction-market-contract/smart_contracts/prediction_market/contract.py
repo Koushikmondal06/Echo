@@ -15,7 +15,6 @@ from algopy import (
     GlobalState,
     LocalState,
     urange,
-    ensure_budget,
 )
 from typing import Literal
 
@@ -23,7 +22,7 @@ from typing import Literal
 # Constants (Python integers for compile-time computation)
 SCALE = 1_000_000  # 6 decimal places (micro-shares)
 MAX_TRADE_SHARES = 10_000_000  # Max 10 tokens per trade
-LOOKUP_TABLE_SIZE = 10  # Minimal for opcode budget
+LOOKUP_TABLE_SIZE = 5  # Reduced for computation budget (6 points)
 MAX_POSITION_PCT = 5  # Max 5% of seed liquidity per user
 
 # Precomputed step size for lookup table (as Python int for compile-time)
@@ -60,7 +59,7 @@ class PredictionMarket(ARC4Contract):
         self.oracle_pubkey = GlobalState(Bytes)
         self.dispute_window = GlobalState(UInt64)
         self.markets = BoxMap(UInt64, MarketState)
-        self.cost_lookups = BoxMap(UInt64, arc4.StaticArray[arc4.UInt64, Literal[11]])
+        self.cost_lookups = BoxMap(UInt64, arc4.StaticArray[arc4.UInt64, Literal[6]])
         self.user_positions = BoxMap(UInt64, UserPosition)
         self.market_counter = GlobalState(UInt64)
         self.fee_bps = GlobalState(UInt64)
@@ -91,39 +90,11 @@ class PredictionMarket(ARC4Contract):
         return result
 
     @subroutine
-    def build_and_store_lookup_table(self, market_id: UInt64, b: UInt64) -> None:
-        """Build and store piecewise-linear lookup table for C(q, 0) - C(0, 0)."""
-        temp_table = arc4.DynamicArray[arc4.UInt64]()
-        step = UInt64(LOOKUP_STEP)
-        
-        # Quadratic approximation: cost = q * ln2_scaled + q^2 // (2*b)
-        ln2_scaled = UInt64(693_147)  # ln(2) * 1_000_000
-        b_val = UInt64(1_000_000_000)
-        
-        for i in urange(LOOKUP_TABLE_SIZE + 1):
-            q = i * step
-            max_q = UInt64(MAX_TRADE_SHARES)
-            if q > max_q:
-                q = max_q
-            
-            cost = (q * ln2_scaled) // SCALE + (q * q) // (2 * b_val)
-            temp_table.append(arc4.UInt64(cost))
-        
-        # Convert to StaticArray
-        table = arc4.StaticArray[arc4.UInt64, Literal[11]](
-            temp_table[0], temp_table[1], temp_table[2], temp_table[3],
-            temp_table[4], temp_table[5], temp_table[6], temp_table[7],
-            temp_table[8], temp_table[9], temp_table[10]
-        )
-        
-        self.cost_lookups[market_id] = table.copy()
-
-    @subroutine
     def approx_cost_from_table(
         self,
         q_yes: UInt64,
         q_no: UInt64,
-        table: arc4.StaticArray[arc4.UInt64, Literal[11]],
+        table: arc4.StaticArray[arc4.UInt64, Literal[6]],
     ) -> UInt64:
         """Approximate incremental cost C(q_yes, q_no) - C(0, 0) using lookup table.
         
@@ -156,7 +127,7 @@ class PredictionMarket(ARC4Contract):
         q_no: UInt64,
         buy_yes: bool,
         delta_q: UInt64,
-        table: arc4.StaticArray[arc4.UInt64, Literal[11]],
+        table: arc4.StaticArray[arc4.UInt64, Literal[6]],
     ) -> UInt64:
         """Compute cost to buy delta_q shares of YES or NO."""
         if buy_yes:
@@ -183,6 +154,7 @@ class PredictionMarket(ARC4Contract):
         b_param: UInt64,
         yes_asset_id: UInt64,
         no_asset_id: UInt64,
+        cost_lookup: arc4.StaticArray[arc4.UInt64, Literal[6]],
     ) -> UInt64:
         assert Txn.sender == self.admin.value, "Only admin can create markets"
         assert end_time > Global.latest_timestamp, "End time must be in future"
@@ -209,8 +181,8 @@ class PredictionMarket(ARC4Contract):
         
         max_position = seed_liquidity * MAX_POSITION_PCT // 100
 
-        # Build and store LMSR lookup table
-        self.build_and_store_lookup_table(market_id, b_param)
+        # Store pre-computed lookup table (single BoxMap write)
+        self.cost_lookups[market_id] = cost_lookup.copy()
 
         self.markets[market_id] = MarketState(
             polymarket_condition_id=polymarket_condition_id.copy(),
@@ -275,11 +247,12 @@ class PredictionMarket(ARC4Contract):
         
         self.markets[market_id] = market.copy()
 
-        # Mint position tokens
+        # Mint position tokens using clawback from admin (deployer holds all tokens)
         itxn.AssetTransfer(
             xfer_asset=asset_id.native,
             asset_receiver=Txn.sender,
             asset_amount=delta_q,
+            asset_sender=self.admin.value,
         ).submit()
 
         if fee > 0:
@@ -374,6 +347,16 @@ class PredictionMarket(ARC4Contract):
         itxn.AssetTransfer(
             xfer_asset=asset_id.native,
             asset_receiver=Txn.sender,
+            asset_amount=0,
+        ).submit()
+
+    @arc4.abimethod
+    def opt_in_contract_to_asset(self, asset_id: arc4.UInt64) -> None:
+        """Opt-in the contract itself to an asset. Can be called by admin."""
+        assert Txn.sender == self.admin.value, "Only admin can call this"
+        itxn.AssetTransfer(
+            xfer_asset=asset_id.native,
+            asset_receiver=Global.current_application_address,
             asset_amount=0,
         ).submit()
 

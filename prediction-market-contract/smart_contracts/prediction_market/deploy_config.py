@@ -1,7 +1,13 @@
 import logging
 import base64
+import os
 
 import algokit_utils
+from algokit_utils import (
+    AlgorandClient,
+    AlgoClientConfigs,
+    AlgoClientNetworkConfig,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +19,23 @@ def deploy() -> None:
         CreateAppArgs,
     )
 
-    algorand = algokit_utils.AlgorandClient.from_environment()
-    deployer_ = algorand.account.from_environment("DEPLOYER")
+    # Configure for TestNet explicitly
+    algod_config = AlgoClientNetworkConfig(
+        server="https://testnet-api.algonode.cloud",
+        token="",
+    )
+    indexer_config = AlgoClientNetworkConfig(
+        server="https://testnet-idx.algonode.cloud",
+        token="",
+    )
+    kmd_config = AlgoClientNetworkConfig(server="http://localhost:4002")
+    client_config = AlgoClientConfigs(algod_config=algod_config, indexer_config=indexer_config, kmd_config=kmd_config)
+    
+    algorand = AlgorandClient(client_config)
+    
+    # Get deployer from mnemonic
+    deployer_mnemonic = os.environ.get("DEPLOYER_MNEMONIC", "animal south script artwork churn wrong ankle siege session hamster toilet deal proof innocent raven churn bitter mammal ripple cry primary power entire absent budget")
+    deployer_ = algorand.account.from_mnemonic(mnemonic=deployer_mnemonic)
 
     factory = algorand.client.get_typed_app_factory(
         PredictionMarketFactory, default_sender=deployer_.address
