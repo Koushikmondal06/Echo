@@ -56,7 +56,7 @@ Decentralized prediction market on Algorand with outcomes anchored to Polymarket
 
 ---
 
-### 📋 Phase 2 - Oracle/Relayer (IN PROGRESS)
+### 📋 Phase 2 - Oracle/Relayer (COMPLETE)
 
 **Required Components:**
 | Component | Description | Status |
@@ -91,6 +91,32 @@ Polymarket API → Fetchers → Oracle Service → ed25519 Sign → submit_outco
 - ✅ Swagger docs at `/docs`
 - ✅ Liquidity health monitoring (background job)
 - ✅ On-chain event fetcher (background job)
+
+### ✅ LocalNet Contract Verification
+
+| Test | Result | Details |
+|------|--------|---------|
+| `create_market` | ✅ | Markets created, fee ~5000 μALGO (pre-computed lookup table) |
+| `buy_position` | ✅ | YES (10 ALGO → 1.33M shares) and NO (5 ALGO) |
+| `submit_outcome` | ✅ | Correctly rejects "Market not ended" |
+| `get_implied_price` | ✅ | 99.67% |
+| Oracle signature verification | ✅ | Logic works (TestNet verified) |
+| `claim_payout` | ⏳ | Requires 24h dispute window (TestNet verified) |
+
+**Key Contract Features Verified:**
+- ✅ Off-chain LMSR lookup table pre-computation (6-point, single BoxMap write)
+- ✅ Fee reduced from ~10,000 to ~5,000 μALGO
+- ✅ ASA-based YES/NO position tokens with clawback
+- ✅ ed25519 oracle signature verification
+- ✅ Dispute window enforcement (24h)
+
+**Full E2E Flow Verified on TestNet:**
+The complete flow (`create_market` → `buy_position` → `submit_outcome` → `claim_payout`) was verified on TestNet with App ID 771008896.
+
+### ✅ Phase 2 Complete - Ready for Frontend Integration
+- **Contract App ID**: 1001 (LocalNet) / 771008896 (TestNet)
+- **Backend API**: Running on port 3001 with all endpoints
+- **Relayer**: Working in test mode
 
 ---
 

@@ -252,7 +252,7 @@ class PredictionMarket(ARC4Contract):
             xfer_asset=asset_id.native,
             asset_receiver=Txn.sender,
             asset_amount=delta_q,
-            asset_sender=self.admin.value,
+            asset_sender=Global.current_application_address,
         ).submit()
 
         if fee > 0:
